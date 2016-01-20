@@ -1,7 +1,7 @@
 The original build of this master clock controller is described in the
 January 2015 issue of Nuts and Volts:
 
-    http://nutsvolts.texterity.com/nutsvolts/201501/?folio=32&pg=32#pg32
+   http://nutsvolts.texterity.com/nutsvolts/201501/?folio=32&pg=32#pg32
 
 Note: You may need a subscription to use the link.
 
@@ -17,14 +17,15 @@ issues:
 I therefore recommend using a switched power supply instead. The following
 switched power supply does the job nicely for me and (currently) costs $24.95:
 
-    http://www.mouser.com/Search/ProductDetail.aspx?R=RPD-65Dvirtualkey63430000virtualkey709-RPD65D
+   http://www.mouser.com/Search/ProductDetail.aspx?R=RPD-65Dvirtualkey63430000virtualkey709-RPD65D
     
 I also had issues with the IRFZ44N HEXFET used in the design. I eventually
 switched to a standard design based on the FQP27P06 MOSFET, which is as
 common as dirt. Note that you can also buy a prebuilt driver board, e.g.:
 
-    https://www.sparkfun.com/products/10618
-    http://tronixlabs.com/arduino/shields/motor/freetronics-n-drive-mosfet-shield-for-arduino-australia/ 
+   https://www.sparkfun.com/products/10618
+
+   http://tronixlabs.com/arduino/shields/motor/freetronics-n-drive-mosfet-shield-for-arduino-australia/ 
 
 Or you can build a kit:
 
