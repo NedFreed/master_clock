@@ -33,24 +33,24 @@ This version has been extensively modified and in some places rewritten.
 - The console mode has been extensively revised. All commands can now be
   preceded with an unsigned number N. The available commands are:
   
-  N, n - manual trigger of NTP sync
-  <    - Slow the clock down for simulation runs
-  >    - Speeds the clock up for simulation runs
-  +    - Advance the digital clock minute
-  -, _ - Decrement the digital clock minute
-  H, h - Set hour value to N
-  M, m - Set minute value to N
-  S, s - Set second value to N
-  A, a - Send N A pulses to IBM slave clocks (default 1)
-  B, b - Send N B pulses to IBM slave clocks (default 1)
-  C, c - Send N combined A/B pulses  to IBM slave clocks (default 1)
-  D, d - Send N pulses to Simplex clocks (default 1)
-  E, e - Send reset command to Simplex clocks
-  f    - Turn on reset solenoid on IBM synchronous clocks 
-  F    - Turn off reset solenoid on IBM synchronous clocks
-  I, i - Hold IBM slave and Simply clocks for N seconds (default 3600)
-  U, u - Hold IBM slave clocks for N seconds (default 3600)
-  V, v - Hold Simplex clocks for N seconds (default 3600)
+  * N, n - manual trigger of NTP sync
+  * <    - Slow the clock down for simulation runs
+  * >    - Speeds the clock up for simulation runs
+  * +    - Advance the digital clock minute
+  * -, _ - Decrement the digital clock minute
+  * H, h - Set hour value to N
+  * M, m - Set minute value to N
+  * S, s - Set second value to N
+  * A, a - Send N A pulses to IBM slave clocks (default 1)
+  * B, b - Send N B pulses to IBM slave clocks (default 1)
+  * C, c - Send N combined A/B pulses  to IBM slave clocks (default 1)
+  * D, d - Send N pulses to Simplex clocks (default 1)
+  * E, e - Send reset command to Simplex clocks
+  * f    - Turn on reset solenoid on IBM synchronous clocks 
+  * F    - Turn off reset solenoid on IBM synchronous clocks
+  * I, i - Hold IBM slave and Simply clocks for N seconds (default 3600)
+  * U, u - Hold IBM slave clocks for N seconds (default 3600)
+  * V, v - Hold Simplex clocks for N seconds (default 3600)
 
 Important note: The PC test/simulator code is still present in the repo but
 has NOT been maintained. As a result it is guaranteed not to build.
