@@ -7,120 +7,125 @@
    by Michael Margolis
    modified 9 Apr 2012
    by Tom Igoe
-
+   modified 8 Aug 2015 - modernize DHCP support
+   by Ned Freed 
    This code is in the public domain.
 
  */
 
+/* System configuration */
+#include "setup.h"
+
 #include <Arduino.h>
 #include <IPAddress.h>
 #include <SPI.h>
-#include <EthernetDHCP.h>
+#include <Dhcp.h>
+#include <Ethernet.h>
 #include <EthernetUdp.h>
 #include "console.h"
-//#include "myUdp.h"
 
-// Enter a MAC address for your controller below.
-// Newer Ethernet shields have a MAC address printed on a sticker on the shield
-byte mac[] = {
-  0x00, 0xAD, 0xBE, 0xEF, 0xFE, 0xED };
+byte mac[] = MAC_ADDRESS;
 
 IPAddress *timeServerAddress = NULL ;
-unsigned int localPort = 8888;      // local port to listen for UDP packets
-unsigned int serverPort = 0 ;
+unsigned int timeServerPort = 0 ;
 
 // A UDP instance to let us send and receive packets over UDP
 EthernetUDP Udp;
-static bool active = false ;
+
+// A TCP server instance to accept commands over the network
+
+EthernetServer Server = EthernetServer(SERVER_PORT);
+EthernetClient Client;
 
 void reportMac()
 {
-  p("Programmed MAC address=%02X:%02X:%02X:%02X:%02X:%02X\n", mac[0], mac[1], mac[2], mac[3], mac[4], mac[5] ) ;
+  p("MAC address: %02X:%02X:%02X:%02X:%02X:%02X\r\n", mac[0], mac[1], mac[2], mac[3], mac[4], mac[5]);
 }
 
 // Just a utility function to nicely format an IP address.
-const char* ip_to_str(const uint8_t* ipAddr)
+char *ip_to_str(IPAddress ipAddr)
 {
   static char buf[16];
+
   sprintf(buf, "%d.%d.%d.%d", ipAddr[0], ipAddr[1], ipAddr[2], ipAddr[3]);
   return buf;
 }
 
 void udpSetup(unsigned char* addr , unsigned int port )
 {
+  reportMac();
   // start Ethernet and UDP
-  EthernetDHCP.begin(mac, 1);
-  timeServerAddress = new IPAddress( addr[0], addr[1], addr[2], addr[3]);
-  serverPort = port ;
-}
-
-void udpService( )
-{
-  static DhcpState prevState = DhcpStateNone;
-  
-  // poll() queries the DHCP library for its current state (all possible values
-  // are shown in the switch statement below). This way, you can find out if a
-  // lease has been obtained or is in the process of being renewed, without
-  // blocking your sketch. Therefore, you could display an error message or
-  // something if a lease cannot be obtained within reasonable time.
-  // Also, poll() will actually run the DHCP module, just like maintain(), so
-  // you should call either of these two methods at least once within your
-  // loop() section, or you risk losing your DHCP lease when it expires!
-  DhcpState state = EthernetDHCP.poll();
-
-  if (prevState != state) {
-
-    switch (state) {
-      case DhcpStateDiscovering:
-        p("DHCP Discover\n");
-        break;
-      case DhcpStateRequesting:
-        Serial.print("DHCP Request\n");
-        break;
-      case DhcpStateRenewing:
-        Serial.print("DHCP Renew\n");
-        break;
-      case DhcpStateLeased: {
-        Serial.println("DHCP Obtained\n");
-
-        // Since we're here, it means that we now have a DHCP lease, so we
-        // print out some information.
-        const byte* ipAddr = EthernetDHCP.ipAddress();
-        const byte* gatewayAddr = EthernetDHCP.gatewayIpAddress();
-        const byte* dnsAddr = EthernetDHCP.dnsIpAddress();
-
-        p(" IP address: %s\n", ip_to_str(ipAddr));
-        p("    Gateway: %s\n", ip_to_str(gatewayAddr));
-        p("        DNS: %s\n", ip_to_str(dnsAddr));
-
-        if ( ! active ) {
-          p("Starting NTP handler on port %u\n", localPort ) ;
-          Udp.begin(localPort);
-          active = true;
-        }
-        break;
-      }
-    }
-    prevState = state;
+  if (Ethernet.begin(mac) == 0) {
+    p("Failed to configure Ethernet with DHCP\r\n");
+    // No point in carrying on, so do nothing forevermore:
+    while(true);
   }
-}
+  p("IP address: %s\r\n", ip_to_str(Ethernet.localIP()));
+  p("   Gateway: %s\r\n", ip_to_str(Ethernet.gatewayIP()));
+  p("      Mask: %s\r\n", ip_to_str(Ethernet.subnetMask()));
+  p("       DNS: %s\r\n", ip_to_str(Ethernet.dnsServerIP()));
 
-bool udpActive () { return !!active ; }
+  timeServerAddress = new IPAddress(addr[0], addr[1], addr[2], addr[3]);
+  timeServerPort = port;
+  p("NTP Server: %s:%d\r\n", ip_to_str(*timeServerAddress), timeServerPort);
+  Udp.begin(TIME_LOCAL_PORT);
+  Server.begin();
+}
 
 int sendUdp( char * data, int size )
 {
-  if ( ! active ) return 0 ;
-  
-  Udp.beginPacket(*timeServerAddress, serverPort);
+  Udp.beginPacket(*timeServerAddress, timeServerPort);
   byte count = Udp.write((const unsigned char *)data,size);
   Udp.endPacket();
-  return (int) count ;
+  return (int)count;
 }
 
 int readUdp( char * buf, int size )
 {
-  if ( ! active ) return 0 ;
   int count = Udp.parsePacket() ;
-  if ( count ) Udp.read( buf, size ) ;
+  if (count) Udp.read( buf, size ) ;
   return count ;
 }
+
+typedef enum Server_State {
+    server_idle ,        ///< No connection
+    server_connected     ///< Server connected
+} Server_State ;
+
+static Server_State serverState = server_idle ;
+
+int readServer()
+{
+  switch (serverState) {
+    case server_idle :
+      if ((Client = Server.available()))
+        serverState = server_connected ;
+      else
+        break;
+
+    case server_connected :
+      if (!Client.connected()) {
+        Client.stop() ;
+        serverState = server_idle ;
+      }
+      else if (Client.available())
+        return Client.read();
+      break;
+  }
+  return -1;
+}
+
+void writeServer(char *s)
+{
+  switch (serverState) {
+    case server_idle :
+      return;
+    case server_connected :
+      if (!Client.connected()) {
+        Client.stop() ;
+        serverState = server_idle ;
+      }
+      else Client.print(s) ;    
+  }
+}
+

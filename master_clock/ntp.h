@@ -1,3 +1,3 @@
 void ntpSetup() ;
-bool readNtpResponse( unsigned long &secsSince1900 ) ;
+bool readNtpResponse( int64_t &secsSince1900 ) ;
 void sendNtpRequest() ;

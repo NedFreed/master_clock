@@ -15,6 +15,7 @@
 #include <stdarg.h>
 #include "clock_generic.h"
 #include "console.h"
+#include "Udp.h"
 
 //_____________________________________________________________________
 // Print formatted text to the console.
@@ -25,6 +26,7 @@ void p(const char *fmt, ... ){
         vsnprintf(tmp, 128, fmt, args);
         va_end (args);
         sendString(tmp);
+        writeServer(tmp);
 }
 
 // Print the current time and A/B signal levels on the console
@@ -33,174 +35,88 @@ void showTime() {
 
   //-- Newline + whole time every minute
   if ( s == 0 )
-    p("\n%02u:%02u ", getMinutes(), s);
+    p("\r\n%02u%s:%02u:%02u ", getHours(), getDST() ? "D" : "", getMinutes(), s);
   else if ( (s % 10 ) == 0)
     p("%02u", s );
   else
     p("-");
 
-  //-- Show the A/B pulse status
+  //-- Show the A/B/D/E pulse status, F level
   if (getA()) p("A");
   if (getB()) p("B");
+  if (getD()) p("D");
+  if (getE()) p("E");
+  if (getF()) p("F");
 }
 
-// Report the A or B signal has dropped
+// Report that a signal has dropped
 void showSignalDrop() {
-    p("%s", (getA()||getB())?"*":"");
-}
-
-static bool timeEntryMode = false ;
-
-//_____________________________________
-// Parse time values input by the user
-bool timeEntry( char ch ) {
-  static char buf[10] ;          ///< Collect the entered time string
-  static unsigned int ibuf = 0 ; ///< Count number of entered characters
-
-  buf[ibuf]   = 0 ;              ///< Zero-terminate the string so far
-
-  // Read the time input (numbers and ':' only)
-  if ( isdigit(ch) || ch == ':' )
-  {
-
-    if ( ibuf < sizeof(buf)-1 )
-      buf[ibuf++] = ch ;
-
-    buf[ibuf] = 0 ;
-    return false ;
-  }
-
-  // Process 'special' keys
-  switch ( ch ) {
-    case 27 :     // ESC
-    case 3 :      // Ctrl-C
-	    ibuf = 0 ;                   // Cancel the user input
-	    timeEntryMode = false ;      // Exit time-entry-mode
-	    return false ;
-
-    case 8  :     // Backspace
-	    if ( ibuf > 0 ) buf[--ibuf] = '\0';    // Erase the last-entered byte
-	    return false ;
-  }
-
-  // If we get this far, the user typed something which is not a valid time character.
-  // End the time entry mode and set the time values if they are valid.
-
-  timeEntryMode = false ;
-  if ( ibuf == 0 ) return false ;
-
-  // Show the user the time string he entered
-  p ("    time=%s ", buf);
-
-  // interpret the time we have accumulated from the user
-  int m0 = -1 ;
-  int s0 = -1 ;
-  char *pp = buf ;
-
-  // Acceptable time formats:
-  // mm:ss  Set the minutes and the seconds
-  // mmss   Set the minutes and the seconds
-  // :ss    Set the seconds, but leave the minutes alone
-  // ss     Set the seconds, but leave the minutes alone
-  // mm:    Set the minutes, but leave the seconds alone
-
-  // Find any colon the user entered
-  for ( ; *pp && *pp != ':' ; pp++ ) ;
-
-  // Here's how we recognize the different formats
-  // :00    pp == buf
-  // 0000   *(pp+1) == 0 && ibuf > 2
-  // 00:    *(pp+1) == 0
-  // 00:00  *pp=':'
-
-  if ( *pp==':' ) {
-    // nn:...  User entered minutes value
-    if ( pp > buf ) m0 = atoi(buf) ;
-
-    // :nn  User entered seconds value after colon
-    if ( pp[1]>0 ) s0 = atoi(pp+1);
-  }
-  else {
-    // ss or mmss
-    s0 = atoi(buf) ;
-    if ( ibuf > 2 ) {
-      // mmss
-      m0 = s0 / 100 ;
-      s0 %= 100 ;
-    }
-  }
-
-  ibuf = 0 ;
-
-  // Complain about bad input
-  if ( m0 > 59 || s0 > 59 )
-  {
-    p("  ** Bad time input ** ");
-    return false ;
-  }
-
-  // Set the clock time to the values the user entered
-  if ( m0 >= 0 ) setMinutes(m0);
-  if ( s0 >= 0 ) setSeconds(s0);
-
-  // If we changed the seconds value, reset the timer-tick to 00 milliseconds
-  if ( s0 >= 0 ) syncTime() ;
-
-  return true ;
+    p("%s", (getA()||getB()||getD()||getE())?"*":"");
 }
 
 void triggerNtp();
 //_____________________________________
 // Read user input and act on it
 bool controlMode( char ch ) {
+    static int arg = -1;
+    int retval = false;
+    if (isdigit( ch )) {
+      if (arg < 0) arg = 0;
+      arg = arg * 10 + (ch - '0');
+      return false;
+    }
     switch ( ch ) {
-
     // 'N' triggers the NTP protocol manually
-    case 'N': case 'n': triggerNtp() ; return true ;
+    case 'N': case 'n': triggerNtp() ; retval = true ; break ;
 
     // Left-arrow (Less-Than) slows down the clock for simulation runs
-    case '<': case ',': slowDown() ; return true ;
+    case '<': case ',': slowDown() ;   retval = true ; break ;
 
     // Right-arrow (Greater-Than) speeds up the clock for simulation runs
-    case '>': case '.': speedUp() ; return true ;
+    case '>': case '.': speedUp() ;    retval = true ; break ;
 
     // PLUS advances the digital clock minute
-    case '+': case '=': incMinutes() ; return true ;
+    case '+': case '=': incMinutes() ; retval = true ; break ;
 
     // MINUS decrements the digital clock minute
-    case '_': case '-': decMinutes() ; return true ;
+    case '_': case '-': decMinutes() ; retval = true ; break ;
+
+    // H, M, S set hours, minutes, seconds
+    case 'H': case 'h': if (arg >= 0) setHours(arg);                retval = true ;      break ;
+    case 'M': case 'm': if (arg >= 0) setMinutes(arg);              retval = true ;      break ;
+    case 'S': case 's': if (arg >= 0) setSeconds(arg); syncTime() ; retval = true ;      break ;
 
     // 'Z' resets the digital clock seconds
     case 'z': case 'Z': setSeconds(0) ; syncTime() ; return true ;
 
     // A, B and C manually force the A/B output pulses but do not affect the internal clock
     // A and B add to the force count for the A and B signals.  C adds to both signals.
-    case 'A': case 'a': sendPulseA() ;               break ;
-    case 'B': case 'b':                sendPulseB() ; break ;
-    case 'C': case 'c': sendPulseA() ; sendPulseB() ; break ;
+    case 'A': case 'a': if (arg < 0) arg = 1 ;    sendPulsesA(arg) ;                     break ;
+    case 'B': case 'b': if (arg < 0) arg = 1 ;    sendPulsesB(arg) ;                     break ;
+    case 'C': case 'c': if (arg < 0) arg = 1 ;    sendPulsesA(arg) ;  sendPulsesB(arg) ; break ;
+    case 'D': case 'd': if (arg < 0) arg = 1 ;    sendPulsesD(arg) ;                     break ;
+    case 'E': case 'e':                           sendPulsesE(1)   ;                     break ;
+
+    case 'f':                                     setState(LOW);                         break ;
+    case 'F':                                     setState(HIGH);                        break ;
+
+    case 'I': case 'i': if (arg < 0) arg = 60*60; clockHold(arg, arg) ;                  break ;
+    case 'U': case 'u': if (arg < 0) arg = 60*60; clockHold(arg, 0) ;                    break ;
+    case 'V': case 'v': if (arg < 0) arg = 60*60; clockHold(0, arg) ;                    break ;
+    default: break;
   }
-  return false ;
+  arg = -1;
+  return retval ;
 }
 
 void consoleService() {
   char ch ;
-  bool timeChange = false ;
 
   ch = readKey();
-  if ( ch < 1 ) return ;
-
-  if ( isdigit(ch) || ch == ':' ) timeEntryMode = true ;
-
-  if ( timeEntryMode )
-  {
-    if ( timeEntry( ch ) )
-    {
-      timeEntryMode = false ;
-      timeChange = true ;
-    }
+  if ( ch < 1 ) {
+    ch = readServer();
+    if (ch < 1) return;
   }
 
-  timeChange |= controlMode(ch) ;
-
-  if ( timeChange ) { p(" -> %02d:%02d ", getMinutes(), getSeconds() );  }
+  if ( controlMode(ch) ) { p(" -> %02d:%02d:%02d ", getHours(), getMinutes(), getSeconds() );  }
 }

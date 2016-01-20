@@ -40,14 +40,18 @@ char readKey();
 //________________________________________________________________
 // Raise/lower digital IO pins
 //
-// The time protocol uses two signal lines, A and B.  These
-// variables hold the desired state of these two lines.  To
-// raise a signal line, set the corresponding variable to 1.
+// The time protocol uses two signal lines, A and B or D and E.
+// These variables hold the desired state of these two line pairs.
+// To raise a signal line, set the corresponding variable to 1.
 // To lower the signal line, set the corresponding variable
 // to 0.  Call the function sendSignal to actually raise or
 // lower each signal line.
 
-void sendSignal( int a, int b) ;
+void sendSignal( int a, int b, int d, int e ) ;
+
+// Digital IO for more stateful IBM synchronous clocks
+
+void setState( int f );
 
 //________________________________________________________________
 // Run the clock loop
@@ -64,15 +68,20 @@ void clockSetup();
 // Time accessors
 // Let other functions get and set the clock time
 
+int getHours() ;     ///< Return the current 'hours' time on the clock
 int getMinutes() ;   ///< Return the current 'minutes' time on the clock
 int getSeconds() ;   ///< Return the current 'seconds' time on the clock
+bool getDST() ;      ///< Return current DST status
 
+void setHours( int hours ) ;     ///< Set the clock 'hours' value
 void setMinutes( int minutes ) ; ///< Set the clock 'minutes' value
 void setSeconds( int seconds ) ; ///< Set the clock 'seconds' value
 
+void incHours( ) ;
 void incMinutes( ) ;
 void incSeconds( ) ;
 
+void decHours( ) ;
 void decMinutes( ) ;
 void decSeconds( ) ;
 
@@ -82,8 +91,20 @@ void syncTime() ;    ///< Zero the tick counter to sync the clock tick
 // Signal accessors
 // Let callers force A and B pulses
 
-void sendPulseA() ;
-void sendPulseB() ;
+void sendPulsesA(int c) ;
+void sendPulsesB(int c) ;
+void sendPulsesD(int c) ;
+void sendPulsesE(int c) ;
 
-bool getA() ;        // Read the last A-signal level
-bool getB() ;        // Read the last B-signal level
+void clockHold(int s1, int s2) ;
+
+bool getA( ) ;        // Read the last A-signal level
+bool getB( ) ;        // Read the last B-signal level
+bool getD( ) ;        // Read the last D-signal level
+bool getE( ) ;        // Read the last E-signal level
+bool getF( ) ;        // Read the current F-signal level
+
+int getSavedTimeValue(int *t);
+void setSavedTimeValue(int h, int m);
+
+

@@ -24,47 +24,50 @@
 
  */
 
+/* System configuration */
+#include "setup.h"
+
 #include "Udp.h"
 #include "console.h"
 #include <ctype.h>
+#include <stdint.h>
 
-unsigned char timeServer[] = {132, 163, 4, 101}; // time-a.timefreq.bldrdoc.gov NTP server
-// IPAddress timeServer(132, 163, 4, 102); // time-b.timefreq.bldrdoc.gov NTP server
-// IPAddress timeServer(132, 163, 4, 103); // time-c.timefreq.bldrdoc.gov NTP server
+unsigned char timeServer[] = TIME_SERVER;
 
-const int NTP_PACKET_SIZE= 48; // NTP time stamp is in the first 48 bytes of the message
+const int NTP_PACKET_SIZE = 48; // NTP time stamp is in the first 48 bytes of the message
 
 unsigned char packetBuffer[ NTP_PACKET_SIZE]; //buffer to hold incoming and outgoing packets
 
 void ntpSetup() {
-	udpSetup( timeServer , 123 ) ;
+	udpSetup( timeServer, 123 );
 }
 
-bool readNtpResponse( unsigned long &secsSince1900 ) {
+bool readNtpResponse( int64_t &secsSince1900 ) {
   int readBytes = readUdp( (char *)packetBuffer, sizeof(packetBuffer) ) ;
+
   if ( ! readBytes ) return false ;
 
-    p("NTP: Received %u byte packet\n", readBytes);
-    p("------------------------------------------------------------------------------\n");
+    p("NTP: Received %u byte packet\r\n", readBytes);
+    p("--------------------------------------------------------------------\r\n");
     for (int i = 0 ; i < readBytes ; i++ ) {
         p("%02X " , packetBuffer[i]) ;
         int n=i+1;
-        if ( n == readBytes || (n%32)==0 ) p("\n");
+        if ( n == readBytes || (n%32)==0 ) p("\r\n");
         else if ((n%16)==0 ) p("- ");
     }
-    p("------------------------------------------------------------------------------\n");
+    p("--------------------------------------------------------------------\r\n");
 
     if ( readBytes < 48 ) {
-        p("Packet too short.\n");
+        p("Packet too short.\r\n");
         return  false ;
     }
 
-     //PRINT MAC ADDRESS assigned in "Udp code"
+     // Print Mac address assigned in setup.h
     reportMac( ) ;
 
-    p("Reference clock: %.*s\n", 4, packetBuffer+12 );
+    p("Reference clock: %.*s\r\n", 4, packetBuffer+12 );
 
-    //the timestamp starts at byte 40 of the received packet and is four bytes,
+    // The timestamp starts at byte 40 of the received packet and is four bytes,
     // or two words, long. First, extract the two words:
 
     // this is NTP time (seconds since Jan 1 1900):
@@ -74,14 +77,14 @@ bool readNtpResponse( unsigned long &secsSince1900 ) {
         secsSince1900 |= packetBuffer[i] ;
     }
 
-    p("Seconds since Jan 1 1900 = %lu\n" , secsSince1900);
+    // p("Seconds since Jan 1 1900 = %lu\r\n" , secsSince1900);
     return true ;
 }
 
 // send an NTP request to the time server at the given address
 void sendNtpRequest()
 {
-  // set all bytes in the buffer to 0
+  // Set all bytes in the buffer to 0
   for (int i = 0 ; i < NTP_PACKET_SIZE ; i++ ) packetBuffer[i]= 0;
 
   // Initialize values needed to form NTP request
@@ -96,7 +99,7 @@ void sendNtpRequest()
   packetBuffer[14]  = 49;
   packetBuffer[15]  = 52;
 
-  p("\nNTP Request\n");
+  p("\nNTP Request\r\n");
   // all NTP fields have been given values, now
   // you can send a packet requesting a timestamp:
   sendUdp((char *)packetBuffer , NTP_PACKET_SIZE ) ;
