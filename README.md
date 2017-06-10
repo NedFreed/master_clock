@@ -35,8 +35,8 @@ This version has been extensively modified and in some places rewritten.
   
   * N, n - manual trigger of NTP sync
   * <    - Slow the clock down for simulation runs
-  * >    - Speeds the clock up for simulation runs
-  * +    - Advance the digital clock minute
+  * \>    - Speeds the clock up for simulation runs
+  * \+    - Advance the digital clock minute
   * -, _ - Decrement the digital clock minute
   * H, h - Set hour value to N
   * M, m - Set minute value to N
